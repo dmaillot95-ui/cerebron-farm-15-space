@@ -1,0 +1,74 @@
+name: CEREBRON Farm 15 Space
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  space-agent:
+    strategy:
+      fail-fast: false
+      matrix:
+        role:
+          - MISSION_ARCHITECT
+          - LAUNCH_SYSTEMS_SPECIALIST
+          - PROPULSION_SPECIALIST
+          - ORBITAL_MECHANICS_SPECIALIST
+          - GNC_SPECIALIST
+          - STRUCTURES_SPECIALIST
+          - THERMAL_SPECIALIST
+          - SPACE_POWER_SPECIALIST
+          - COMMUNICATIONS_SPECIALIST
+          - ROBOTICS_AUTONOMY_SPECIALIST
+          - HABITAT_ECLSS_SPECIALIST
+          - ISRU_SPECIALIST
+          - SPACE_OPERATIONS_SPECIALIST
+          - RELIABILITY_SPECIALIST
+          - SAFETY_SPECIALIST
+          - INDUSTRIALIZATION_SPECIALIST
+          - COST_LOGISTICS_SPECIALIST
+          - VERIFICATION_VALIDATION_SPECIALIST
+          - RED_TEAM_FALSIFIER
+          - SPACE_SYNTHESIZER
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install -q gradio_client
+      - name: Execute space role
+        env:
+          ROLE: ${{ matrix.role }}
+        run: python worker.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: space-${{ matrix.role }}
+          path: out/*.json
+
+  omega-fusion:
+    needs: space-agent
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: space-*
+          path: packet
+          merge-multiple: true
+      - run: |
+          python - <<'PY'
+          import json,glob,os
+          files=glob.glob('packet/*.json')
+          rows=[]
+          for f in files:
+              try: rows.append(json.load(open(f,encoding='utf-8')))
+              except: pass
+          os.makedirs('omega',exist_ok=True)
+          out={'farm':'15-space','role_artifacts':len(rows),'successful_external_ai_calls':sum(r.get('status')=='SUCCESS' for r in rows),'failed_external_ai_calls':sum(r.get('status')!='SUCCESS' for r in rows),'roles':[r.get('role') for r in rows]}
+          json.dump(out,open('omega/summary.json','w'),indent=2)
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: space-omega-packet
+          path: omega/summary.json
