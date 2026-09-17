@@ -36,12 +36,13 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-      - run: pip install -q gradio_client
-      - name: Execute space role
+      - run: pip install -q hf-gradio
+      - name: Execute space role through real external model
         env:
           ROLE: ${{ matrix.role }}
         run: python worker.py
       - uses: actions/upload-artifact@v4
+        if: always()
         with:
           name: space-${{ matrix.role }}
           path: out/*.json
@@ -59,14 +60,15 @@ jobs:
       - run: |
           python - <<'PY'
           import json,glob,os
-          files=glob.glob('packet/*.json')
-          rows=[]
+          files=glob.glob('packet/*.json'); rows=[]
           for f in files:
               try: rows.append(json.load(open(f,encoding='utf-8')))
               except: pass
+          ok=[r for r in rows if r.get('inference_success') is True and r.get('status')=='UNREVIEWED_EXTERNAL_AGENT_OUTPUT']
           os.makedirs('omega',exist_ok=True)
-          out={'farm':'15-space','role_artifacts':len(rows),'successful_external_ai_calls':sum(r.get('status')=='SUCCESS' for r in rows),'failed_external_ai_calls':sum(r.get('status')!='SUCCESS' for r in rows),'roles':[r.get('role') for r in rows]}
+          out={'farm':'15-space','roles_returned':len(rows),'successful_external_ai_calls':len(ok),'failed_external_ai_calls':len(rows)-len(ok),'successful_roles':[r.get('role') for r in ok],'models':sorted(set(r.get('model') for r in ok if r.get('model'))),'epistemic_status':'UNREVIEWED_EXTERNAL_AGENT_OUTPUT','claim':'Only nonempty verified external model outputs are counted.'}
           json.dump(out,open('omega/summary.json','w'),indent=2)
+          print(json.dumps(out,indent=2))
           PY
       - uses: actions/upload-artifact@v4
         with:
